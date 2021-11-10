@@ -3,6 +3,7 @@ jmp inicio
 .org 0x0004
 jmp isr_I1
 
+.include "Division.inc"
 
 inicio:
 	ldi r16,high(RamEnd)  
@@ -10,39 +11,69 @@ inicio:
 	ldi r16,low(RamEnd)
 	out Spl,r16
 
-	Ldi r16,(1<<PortB2)		//Pin conectado al colector del OPTO
-	out DdrB,r16
 	
+// Config de la Usart
 
+	LDI			R16,0
+	STS			UCSR0A,R16
+	LDI			R16,(1<<TXEN0)
+	STS			UCSR0B,R16
+	LDI			R16,(1<<UCSZ01)|(1<<UCSZ00)
+	STS			UCSR0C,R16
+	LDI			r16,103
+	STS			UBRR0L,r16
+	LDI			R16,0
+	STS			UBRR0H,R16
 
 //Config de la Int1
 
-	Ldi r16,(1<<Isc11)|(1<<Isc10) //Activado por flanco decendente (Habria que ver si no tenemos delay)
+	Ldi r16,(1<<Isc11)|(1<<Isc10) //Activado por flanco decendente
 	Sts Eicra,r16
 	Ldi r16,(1<<Int1)
 	out Eimsk,r16
 
 
-//Config de la USART
 	sei
 
 
 	volver1:
 	Rjmp volver1
-							/*Pd: si es que no lo hice todavia, estaria bueno ver si en ves de usar otro pin para los 5V, usar la R de pull up del pin de la Int 0
-								  aunque tengo mis dudas si funcionaria*/
-	
+							
 
 Isr_I1:
-	
 	inc r17
-	cpi r17,60
+	cpi r17,100
 	breq Cuenta1Seg
 	rjmp volver
 	Cuenta1Seg:
-	sbi pinb,pinb2 //a modo de ver si cuenta un segundo
+	inc r16
+	MOV	R24,R16
 
-	//Envia a la usart en conteo de 1 segundo
+//OBTENER DECENA
+		LDI		R16,LOW(10)
+		MOV		R22,R16
+		CALL	DIVISION8
+		MOV		R20,R24
+		LDI		R18,48
+		ADD		R20,R18
+		CALL	ENVIO_UART
+
+//OBTENER UNIDAD
+		MOV		R20,R26
+		ADD		R20,R18
+		CALL	ENVIO_UART
+				
+	ENVIO_UART:
+		PUSH	R19
+		STS		UDR0,R20
+ESPERAR_TX:		
+		LDS		R19, UCSR0A
+		SBRS	R19,UDRE0
+		RJMP	ESPERAR_TX
+		POP		R19
+		
+
+
 	
 	volver:
 	Reti
